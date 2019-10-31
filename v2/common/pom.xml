@@ -27,7 +27,6 @@
     <artifactId>common</artifactId>
 
     <properties>
-        <avro.version>1.8.2</avro.version>
         <bigquery.version>v2-rev438-1.25.0</bigquery.version>
         <commons.version>1.7</commons.version>
         <gson.version>2.7</gson.version>
@@ -78,7 +77,12 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
-            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.beam</groupId>
+            <artifactId>beam-sdks-java-io-parquet</artifactId>
+            <version>${parquet.version}</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 </project>
