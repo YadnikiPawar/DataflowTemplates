@@ -21,7 +21,6 @@ This is a dynamic template meaning that the pipeline code will be containerized 
 export PROJECT=my-project
 export IMAGE_NAME=my-image-name
 export BUCKET_NAME=gs://<bucket-name>
-export TABLE=my-table
 export TARGET_GCR_IMAGE=gcr.io/${PROJECT}/${IMAGE_NAME}
 export BASE_CONTAINER_IMAGE=gcr.io/dataflow-templates-base/java8-template-launcher-base
 export BASE_CONTAINER_IMAGE_VERSION=latest
@@ -64,7 +63,7 @@ The template requires the following parameters :
 * numShards: Number of file shards to create. 
 
 The template has the following optional parameters:
-* outputFileFormat: The format of the file to write to. Valid formats are Text, Avro and Parquet. Default: text.
+* outputFileFormat: The format of the file to write to. Valid formats are Text, Avro and Parquet. Default: TEXT.
 * outputFilenamePrefix: The filename prefix of the files to write to. Default: output.
 * windowDuration: The window duration in which data will be written. Default: 5m.
 

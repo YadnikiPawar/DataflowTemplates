@@ -95,6 +95,7 @@
     <cassandra.driver.version>3.6.0</cassandra.driver.version>
     <kms.version>1.20.0</kms.version>
     <proto-kms.version>0.67.0</proto-kms.version>
+    <parquet.version>2.14.0</parquet.version>
   </properties>
 
   <dependencies>
@@ -449,6 +450,12 @@
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-clients</artifactId>
       <version>${kafka.clients.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.beam</groupId>
+      <artifactId>beam-sdks-java-io-parquet</artifactId>
+      <version>${parquet.version}</version>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework</groupId>
