@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Google Inc.
+ * Copyright (C) 2019 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -13,19 +13,21 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package com.google.cloud.teleport.bigtable;
 
+import static com.google.cloud.teleport.bigtable.AvroToBigtable.toByteString;
+
 import com.google.bigtable.v2.Mutation;
-import com.google.bigtable.v2.Mutation.SetCell;
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.ByteString;
 import java.nio.ByteBuffer;
+import java.util.List;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
-import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.gcp.bigtable.BigtableIO;
+import org.apache.beam.sdk.io.parquet.ParquetIO;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
@@ -35,12 +37,12 @@ import org.apache.beam.sdk.transforms.SimpleFunction;
 import org.apache.beam.sdk.values.KV;
 
 /**
- * Dataflow pipeline that imports data from Avro files in GCS to a Cloud Bigtable table. The Cloud
- * Bigtable table must be created before running the pipeline and must have a compatible table
- * schema. For example, if {@link BigtableCell} from the Avro files has a 'family' of "f1", the
+ * Dataflow pipeline that imports data from Parquet files in GCS to a Cloud Bigtable table. The
+ * Cloud Bigtable table must be created before running the pipeline and must have a compatible table
+ * schema. For example, if {@link BigtableCell} from the Parquet files has a 'family' of "f1", the
  * Bigtable table should have a column family of "f1".
  */
-final class AvroToBigtable {
+public class ParquetToBigtable {
 
   /** Options for the import pipeline. */
   public interface Options extends PipelineOptions {
@@ -63,7 +65,7 @@ final class AvroToBigtable {
     void setBigtableTableId(ValueProvider<String> tableId);
 
     @Description(
-        "The input file patterm to read from. (e.g. gs://mybucket/somefolder/table1*.avro)")
+        "The input file patterm to read from. (e.g. gs://mybucket/somefolder/table1*.parquet)")
     ValueProvider<String> getInputFilePattern();
 
     @SuppressWarnings("unused")
@@ -71,7 +73,7 @@ final class AvroToBigtable {
   }
 
   /**
-   * Runs a pipeline to import Avro files in GCS to a Cloud Bigtable table.
+   * Runs a pipeline to import Parquet files in GCS to a Cloud Bigtable table.
    *
    * @param args arguments to the pipeline
    */
@@ -96,29 +98,32 @@ final class AvroToBigtable {
             .withTableId(options.getBigtableTableId());
 
     pipeline
-        .apply("Read from Avro", AvroIO.read(BigtableRow.class).from(options.getInputFilePattern()))
-        .apply("Transform to Bigtable", MapElements.via(new AvroToBigtableFn()))
+        .apply(
+            "Read from Parquet",
+            ParquetIO.read(BigtableRow.getClassSchema()).from(options.getInputFilePattern()))
+        .apply("Transform to Bigtable", MapElements.via(new ParquetToBigtableFn()))
         .apply("Write to Bigtable", write);
 
     return pipeline.run();
   }
 
   /**
-   * Translates {@link BigtableRow} to {@link Mutation}s along with a row key. The mutations are
-   * {@link SetCell}s that set the value for specified cells with family name, column qualifier and
-   * timestamp.
+   * Translates {@link GenericRecord} to {@link Mutation}s along with a row key. The mutations are
+   * {@link Mutation.SetCell}s that set the value for specified cells with family name, column
+   * qualifier and timestamp.
    */
-  static class AvroToBigtableFn
-      extends SimpleFunction<BigtableRow, KV<ByteString, Iterable<Mutation>>> {
+  static class ParquetToBigtableFn
+      extends SimpleFunction<GenericRecord, KV<ByteString, Iterable<Mutation>>> {
     @Override
-    public KV<ByteString, Iterable<Mutation>> apply(BigtableRow row) {
-      ByteString key = toByteString(row.getKey());
+    public KV<ByteString, Iterable<Mutation>> apply(GenericRecord record) {
+      ByteString key = toByteString((ByteBuffer) record.get(0));
       // BulkMutation doesn't split rows. Currently, if a single row contains more than 100,000
       // mutations, the service will fail the request.
       ImmutableList.Builder<Mutation> mutations = ImmutableList.builder();
-      for (BigtableCell cell : row.getCells()) {
-        SetCell setCell =
-            SetCell.newBuilder()
+      List<BigtableCell> cells = (List<BigtableCell>) record.get(1);
+      for (BigtableCell cell : cells) {
+        Mutation.SetCell setCell =
+            Mutation.SetCell.newBuilder()
                 .setFamilyName(cell.getFamily().toString())
                 .setColumnQualifier(toByteString(cell.getQualifier()))
                 .setTimestampMicros(cell.getTimestamp())
@@ -128,10 +133,5 @@ final class AvroToBigtable {
       }
       return KV.of(key, mutations.build());
     }
-  }
-
-  /** Copies the content in {@code byteBuffer} into a {@link ByteString}. */
-  protected static ByteString toByteString(ByteBuffer byteBuffer) {
-    return ByteString.copyFrom(byteBuffer.array());
   }
 }
